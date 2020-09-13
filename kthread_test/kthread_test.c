@@ -1,4 +1,4 @@
-simple_data_infosimple_data_info#include <linux/device.h>
+#include <linux/device.h>
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
@@ -57,7 +57,7 @@ static int simple_init(void)
 	printk(KERN_ERR "simple_dat:0x%llx", (u64)&simple_data);
 	printk(KERN_ERR "k_data:0x%llx, v_data:0x%llx", (u64)simple_data.k_data, (u64)simple_data.v_data);
 
-	#assert();
+//	assert();
 
 err:
 	return ret;
