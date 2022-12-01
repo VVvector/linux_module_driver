@@ -71,7 +71,7 @@ static void show_Tether4Key(PTether4Key k4, const char *map_name)
 {
 	printf("== %s : Key ==\n", map_name);
 	printf("iif=%d, l4Proto=%d, src4.s_addr=0x%08x, dst4.s_addr=0x%08x, srcPort=%d, dstPort=%d\n",
-		k4->iif, k4->l4Proto, k4->src4.s_addr, k4->dst4.s_addr, k4->srcPort, k4->dstPort);
+		k4->iif, k4->l4Proto, k4->src4.s_addr, k4->dst4.s_addr, ntohs(k4->srcPort), ntohs(k4->dstPort);
 	printf("dstMac = %02x:%02x:%02x:%02x:%02x:%02x\n\n",
 		k4->dstMac[0], k4->dstMac[1], k4->dstMac[2], k4->dstMac[3], k4->dstMac[4], k4->dstMac[5]);
 }
@@ -80,14 +80,14 @@ static void show_Tether4Value(PTether4Value v4, const char *map_name)
 {
 	printf("== %s : Value ==\n", map_name);
 	printf("oif=%d, pmtu=%d, src46.s6_addr32[3]=0x%08x, dst46.s6_addr32[3]=0x%08x, srcPort=%d, dstPort=%d\n",
-		v4->oif, v4->pmtu, v4->src46.s6_addr32[3], v4->dst46.s6_addr32[3], v4->srcPort, v4->dstPort);
+		v4->oif, v4->pmtu, v4->src46.s6_addr32[3], v4->dst46.s6_addr32[3], ntohs(v4->srcPort), ntohs(v4->dstPort));
 	printf("macHeader.h_dest = %02x:%02x:%02x:%02x:%02x:%02x\n",
 		v4->macHeader.h_dest[0], v4->macHeader.h_dest[1], v4->macHeader.h_dest[2],
 		v4->macHeader.h_dest[3], v4->macHeader.h_dest[4], v4->macHeader.h_dest[5]);
 	printf("macHeader.h_source = %02x:%02x:%02x:%02x:%02x:%02x\n",
 		v4->macHeader.h_source[0], v4->macHeader.h_source[1], v4->macHeader.h_source[2],
 		v4->macHeader.h_source[3], v4->macHeader.h_source[4], v4->macHeader.h_source[5]);
-	printf("macHeader.h_proto = %d\n\n", v4->macHeader.h_proto);
+	printf("macHeader.h_proto = %d\n\n", ntohs(v4->macHeader.h_proto));
 }
 
 static int hex2num(char c)
@@ -109,7 +109,7 @@ static void hexstr2mac(char *src, unsigned char *dst)
 			src++;
 			continue;
 		}
-		
+
 		*(dst + i) = ((hex2num(*src) << 4) | hex2num(*(src + 1)));
 		i++;
 		src += 2;
