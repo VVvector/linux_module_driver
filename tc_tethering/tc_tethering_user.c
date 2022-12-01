@@ -71,7 +71,7 @@ static void show_Tether4Key(PTether4Key k4, const char *map_name)
 {
 	printf("== %s : Key ==\n", map_name);
 	printf("iif=%d, l4Proto=%d, src4.s_addr=0x%08x, dst4.s_addr=0x%08x, srcPort=%d, dstPort=%d\n",
-		k4->iif, k4->l4Proto, k4->src4.s_addr, k4->dst4.s_addr, ntohs(k4->srcPort), ntohs(k4->dstPort);
+		k4->iif, k4->l4Proto, k4->src4.s_addr, k4->dst4.s_addr, ntohs(k4->srcPort), ntohs(k4->dstPort));
 	printf("dstMac = %02x:%02x:%02x:%02x:%02x:%02x\n\n",
 		k4->dstMac[0], k4->dstMac[1], k4->dstMac[2], k4->dstMac[3], k4->dstMac[4], k4->dstMac[5]);
 }
