@@ -44,7 +44,7 @@ struct upstream_info {
 };
 #define UPSTREAM_IF 2
 #define UPSTREAM_IP_ADDR "192.168.182.128"
-#define UPSTREAM_PORT SERVER_PORT
+#define UPSTREAM_PORT CLIENT_PORT
 
 struct downstream_info {
 	uint32_t if_index;
@@ -54,12 +54,12 @@ struct downstream_info {
 
 };
 #define DOWNSTREAM_IF 3
-#define DOWNSTREAM_MAC "00:0c:29:49:01:e4"
+#define DOWNSTREAM_MAC "00:0c:29:49:01:ee"
 #define DOWNSTREAM_IP_ADDR "192.168.60.129"
-#define DOWNSTREAM_PORT CLIENT_PORT
+#define DOWNSTREAM_PORT SERVER_PORT
 
 #define TETHER_DOWNSTREAM4_MAP_PATH "/sys/fs/bpf/tc/globals/tether_downstream4_map"
-#define TETHER_UPSTREAM4_MAP_PATH "/sys/fs/bpf/tc/globals/tether_upstream4_map";
+#define TETHER_UPSTREAM4_MAP_PATH "/sys/fs/bpf/tc/globals/tether_upstream4_map"
 
 #define L4PROTO IPPROTO_TCP
 #define PMTU 1500
@@ -161,7 +161,7 @@ static void init_bpf_map_info(
 	dk4->srcPort = client->port;
 	dk4->dstPort = server->port;
 	memcpy(dk4->dstMac, &downstream->mac, ETH_ALEN);
-	show_Tether4Key(dk4, "downstream Tether4 map");
+	show_Tether4Key(dk4, TETHER_DOWNSTREAM4_MAP_PATH);
 
 	dv4->oif = upstream->if_index;
 	dv4->pmtu = 1500;
@@ -170,7 +170,7 @@ static void init_bpf_map_info(
 	dv4->srcPort = upstream->port;
 	dv4->dstPort = server->port;
 	memset(&dv4->macHeader, 0x00, sizeof(dv4->macHeader));
-	show_Tether4Value(dv4, "downstream Tether4 map");
+	show_Tether4Value(dv4, TETHER_DOWNSTREAM4_MAP_PATH);
 
 	// downlink (upstream NIC ingress)
 	// server -> UE[upstream -> downstream] -> client
@@ -179,9 +179,9 @@ static void init_bpf_map_info(
 	uk4->src4 = server->ip;
 	uk4->dst4 = upstream->ip;
 	uk4->srcPort = server->port;
-	uk4->dstPort = client->port;
+	uk4->dstPort = upstream->port;
 	memset(uk4->dstMac, 0x00, ETH_ALEN);
-	show_Tether4Key(uk4, "upstream Tether4 map");
+	show_Tether4Key(uk4, TETHER_UPSTREAM4_MAP_PATH);
 
 	uv4->oif = downstream->if_index;
 	uv4->pmtu = PMTU;
@@ -192,7 +192,7 @@ static void init_bpf_map_info(
 	memcpy(uv4->macHeader.h_dest, client->mac, ETH_ALEN);
 	memcpy(uv4->macHeader.h_source, &downstream->mac, ETH_ALEN);
 	uv4->macHeader.h_proto = htons(MAC_H_PROTO);
-	show_Tether4Value(uv4, "upstream Tether4 map");
+	show_Tether4Value(uv4, TETHER_UPSTREAM4_MAP_PATH);
 
 }
 
