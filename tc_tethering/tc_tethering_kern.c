@@ -363,8 +363,8 @@ static __always_inline int do_forward4_bottom(struct __sk_buff* skb,
 
 		// If hardware offload is running and programming flows based on conntrack entries, try not
 		// to interfere with it, so do not offload TCP packets with any one of the SYN/FIN/RST flags
-		//if (tcph->syn || tcph->fin || tcph->rst)
-		//	TC_PUNT(TCP_CONTROL_PACKET);
+		if (tcph->syn || tcph->fin || tcph->rst)
+			TC_PUNT(TCP_CONTROL_PACKET);
 	} else { // UDP
 		// Make sure we can get at the udp header
 		if (data + l2_header_size + sizeof(*ip) + sizeof(*udph) > data_end)
