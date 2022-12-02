@@ -20,10 +20,16 @@
 
 //$REDIRECT_USER -U /sys/fs/bpf/tc/globals/tun_iface -i $(< /sys/class/net/ipt/ifindex)
 
+#define L4PROTO IPPROTO_TCP
+#define PMTU 1500
+
+#define MAC_H_PROTO ETH_P_IP
+
 // server <-> UE[upstream <-> downstream] <-> client
 struct server_info {
 	struct in_addr ip;
-	__be16 port;
+	uint16_t l4_proto;
+	uint16_t port;
 };
 #define SERVER_IP_ADDR "8.8.8.8"
 #define SERVER_PORT 60
@@ -31,7 +37,8 @@ struct server_info {
 struct client_info {
 	uint8_t mac[ETH_ALEN];
 	struct in_addr ip;
-	__be16 port;
+	uint16_t l4_proto;
+	uint16_t port;
 };
 #define CLIENT_MAC "00:50:56:c0:00:01"
 #define CLIENT_IP_ADDR "192.168.60.1"
@@ -40,7 +47,7 @@ struct client_info {
 struct upstream_info {
 	uint32_t if_index;
 	struct in_addr ip;
-	__be16 port;
+	uint16_t port;
 };
 #define UPSTREAM_IF 2
 #define UPSTREAM_IP_ADDR "192.168.182.128"
@@ -49,8 +56,9 @@ struct upstream_info {
 struct downstream_info {
 	uint32_t if_index;
 	uint8_t mac[ETH_ALEN];
+	uint16_t l3_proto;
 	struct in_addr ip;
-	__be16 port;
+	uint16_t port;
 
 };
 #define DOWNSTREAM_IF 3
@@ -60,11 +68,6 @@ struct downstream_info {
 
 #define TETHER_DOWNSTREAM4_MAP_PATH "/sys/fs/bpf/tc/globals/tether_downstream4_map"
 #define TETHER_UPSTREAM4_MAP_PATH "/sys/fs/bpf/tc/globals/tether_upstream4_map"
-
-#define L4PROTO IPPROTO_TCP
-#define PMTU 1500
-
-#define MAC_H_PROTO ETH_P_IP
 
 
 static void show_Tether4Key(PTether4Key k4, const char *map_name)
@@ -116,6 +119,7 @@ static void hexstr2mac(char *src, unsigned char *dst)
 	}
 }
 
+
 static void init_link_info(struct server_info *server, struct upstream_info *upstream,
 	struct client_info *client, struct downstream_info *downstream)
 {
@@ -124,27 +128,31 @@ static void init_link_info(struct server_info *server, struct upstream_info *ups
 	//server info
 	ip = inet_addr(SERVER_IP_ADDR);
 	memcpy(&server->ip, &ip, 4);
-	server->port = htons(SERVER_PORT);
+	server->port = SERVER_PORT;
+	server->l4_proto = L4PROTO;
 
 	//upstream info
 	upstream->if_index = UPSTREAM_IF;
 	ip = inet_addr(UPSTREAM_IP_ADDR);
 	memcpy(&upstream->ip, &ip, 4);
-	upstream->port = htons(UPSTREAM_PORT);
+	upstream->port = UPSTREAM_PORT;
 
 	//clent info
 	hexstr2mac(CLIENT_MAC, client->mac);
 	ip = inet_addr(CLIENT_IP_ADDR);
 	memcpy(&client->ip, &ip, 4);
-	client->port = htons(CLIENT_PORT);
+	client->port = CLIENT_PORT;
+	client->l4_proto = L4PROTO;
 
 	//download info
 	downstream->if_index = DOWNSTREAM_IF;
 	hexstr2mac(DOWNSTREAM_MAC, downstream->mac);
+	downstream->l3_proto = MAC_H_PROTO;
 	ip = inet_addr(DOWNSTREAM_IP_ADDR);
 	memcpy(&downstream->ip, &ip, 4);
-	downstream->port = htons(DOWNSTREAM_PORT);	
+	downstream->port = DOWNSTREAM_PORT;
 }
+
 
 static void init_bpf_map_info(
 	struct server_info *server, struct upstream_info *upstream,
@@ -155,11 +163,11 @@ static void init_bpf_map_info(
 	// uplink (downstream NIC ingress)
 	// server <- UE[upstream <- downstream] <- client
 	dk4->iif = downstream->if_index;
-	dk4->l4Proto = L4PROTO;
+	dk4->l4Proto = client->l4_proto;
 	dk4->src4 = client->ip;
 	dk4->dst4 = server->ip;
-	dk4->srcPort = client->port;
-	dk4->dstPort = server->port;
+	dk4->srcPort = htons(client->port);
+	dk4->dstPort = htons(server->port);
 	memcpy(dk4->dstMac, &downstream->mac, ETH_ALEN);
 	show_Tether4Key(dk4, TETHER_DOWNSTREAM4_MAP_PATH);
 
@@ -167,19 +175,19 @@ static void init_bpf_map_info(
 	dv4->pmtu = 1500;
 	dv4->src46.s6_addr32[3] = upstream->ip.s_addr;
 	dv4->dst46.s6_addr32[3] = server->ip.s_addr;
-	dv4->srcPort = upstream->port;
-	dv4->dstPort = server->port;
+	dv4->srcPort = htons(upstream->port);
+	dv4->dstPort = htons(server->port);
 	memset(&dv4->macHeader, 0x00, sizeof(dv4->macHeader));
 	show_Tether4Value(dv4, TETHER_DOWNSTREAM4_MAP_PATH);
 
 	// downlink (upstream NIC ingress)
 	// server -> UE[upstream -> downstream] -> client
 	uk4->iif = upstream->if_index;
-	uk4->l4Proto = L4PROTO;
+	uk4->l4Proto = server->l4_proto;
 	uk4->src4 = server->ip;
 	uk4->dst4 = upstream->ip;
-	uk4->srcPort = server->port;
-	uk4->dstPort = upstream->port;
+	uk4->srcPort = htons(server->port);
+	uk4->dstPort = htons(upstream->port);
 	memset(uk4->dstMac, 0x00, ETH_ALEN);
 	show_Tether4Key(uk4, TETHER_UPSTREAM4_MAP_PATH);
 
@@ -187,13 +195,22 @@ static void init_bpf_map_info(
 	uv4->pmtu = PMTU;
 	uv4->src46.s6_addr32[3] = server->ip.s_addr;
 	uv4->dst46.s6_addr32[3] = client->ip.s_addr;
-	uv4->srcPort = server->port;
-	uv4->dstPort = client->port;
+	uv4->srcPort = htons(server->port);
+	uv4->dstPort = htons(client->port);
 	memcpy(uv4->macHeader.h_dest, client->mac, ETH_ALEN);
 	memcpy(uv4->macHeader.h_source, &downstream->mac, ETH_ALEN);
-	uv4->macHeader.h_proto = htons(MAC_H_PROTO);
+	uv4->macHeader.h_proto = htons(downstream->l3_proto);
 	show_Tether4Value(uv4, TETHER_UPSTREAM4_MAP_PATH);
 
+}
+
+static void usage(void)
+{
+	printf("Usage: tc tethering offload rule setting [...]\n");
+	printf("       -C <client> mac_addr ip_addr l4_proto port\n");
+	printf("       -S <server> ip_addr l4_proto port\n");
+	printf("       -U <upstream> if_id ip_add port\n");
+	printf("       -D <downstream> if_id mac_addr l3_proto ip_addr port \n");
 }
 
 
@@ -204,6 +221,10 @@ int main(int argc, char **argv)
 	int dfd = -1;
 	int ufd = -1;
 	int ret = -1;
+	int opt;
+	int i = 0;
+	ulong ip;
+	char *p; 
 
 	struct server_info server = {0};
 	struct upstream_info upstream = {0};
@@ -214,9 +235,104 @@ int main(int argc, char **argv)
 	Tether4Value dv4 = {0};
 	Tether4Key uk4 = {0};
 	Tether4Value uv4 = {0};
-	
 
-	init_link_info(&server, &upstream, &client, &downstream);
+	while ((opt = getopt(argc, argv, "F:C:S:U:D:")) != -1) {
+		switch (opt) {
+		case 'C':
+			printf("client: %s\n", optarg);
+			i = 0;
+			p = strtok(optarg, "-");
+			while (p) {
+				printf("%s\n", p);
+				if (i == 0) {
+					hexstr2mac(p, client.mac);
+				} else if (i == 1) {
+					ip = inet_addr(p);
+					memcpy(&client.ip, &ip, 4);
+				} else if (i == 2) {
+					client.l4_proto = atoi(p);
+				} else if (i == 3) {
+					client.port = atoi(p);
+				}
+
+				i++;
+				p = strtok(NULL, "-");
+			}
+			break;
+
+		case 'S':
+			printf("server: %s\n", optarg);
+			i = 0;
+			p = strtok(optarg, "-");
+			while (p) {
+				printf("%s\n", p);
+				if (i == 0) {
+					ip = inet_addr(p);
+					memcpy(&server.ip, &ip, 4);
+				} else if (i == 1) {
+					server.l4_proto = atoi(p);
+				} else if (i == 2) {
+					server.port = atoi(p);
+				}
+
+				i++;
+				p = strtok(NULL, "-");
+			}
+			break;
+
+		case 'U':
+			printf("upstream: %s\n", optarg);
+			i = 0;
+			p = strtok(optarg, "-");
+			while (p) {
+				printf("%s\n", p);
+				if (i == 0) {
+					upstream.if_index = atoi(p);
+				} else if (i == 1) {
+					ip = inet_addr(p);
+					memcpy(&upstream.ip, &ip, 4);
+				} else if (i == 2) {
+					upstream.port = atoi(p);
+				}
+
+				i++;
+				p = strtok(NULL, "-");
+			}
+			break;
+
+		case 'D':
+			printf("downstream: %s\n", optarg);
+			i = 0;
+			p = strtok(optarg, "-");
+			while (p) {
+				printf("%s\n", p);
+				if (i == 0) {
+					downstream.if_index = atoi(p);
+				} else if (i == 1) {
+					hexstr2mac(p, downstream.mac);
+				} else if (i == 2) {
+					downstream.l3_proto = atoi(p);
+				} else if (i == 3) {
+					ip = inet_addr(p);
+					memcpy(&downstream.ip, &ip, 4);
+				} else if (i == 4) {
+					downstream.port = atoi(p);
+				}
+
+				i++;
+				p = strtok(NULL, "-");
+			}
+			break;
+
+		default:
+			usage();
+			goto out;
+		}
+	}
+
+
+	//init_link_info(&server, &upstream, &client, &downstream);
+
 	init_bpf_map_info(&server, &upstream, &client, &downstream, &dk4, &dv4, &uk4, &uv4);
 
 	//update downstream map
