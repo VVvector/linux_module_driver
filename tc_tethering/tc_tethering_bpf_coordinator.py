@@ -207,16 +207,23 @@ class CONNTRACK:
     def parse_established_conntrack_to_tuple(self):
         lines = self.conntrack_msg.splitlines()
         for line in lines:
-            if line.find("ESTABLISHED") == -1:
-                continue
+            # if line.find("ESTABLISHED") == -1:
+            #    continue
             temp = line.split()
             log.debug(temp)
             tuple = TUPLE()
+
             tuple.proto = temp[1]
-            tuple.src_ip = temp[4].split("=")[1]
-            tuple.dst_ip = temp[5].split("=")[1]
-            tuple.src_port = temp[6].split("=")[1]
-            tuple.dst_port = temp[7].split("=")[1]
+            for info in temp:
+                if info.find("src") != -1 and tuple.src_ip is None:
+                    tuple.src_ip = info.split("=")[1]
+                elif info.find("dst") != -1 and tuple.dst_ip is None:
+                    tuple.dst_ip = info.split("=")[1]
+                elif info.find("sport") != -1 and tuple.src_port is None:
+                    tuple.src_port = info.split("=")[1]
+                elif info.find("dport") != -1 and tuple.dst_port is None:
+                    tuple.dst_port = info.split("=")[1]
+
             log.debug("tuple: {}-{}-{}-{}-{}".format(tuple.proto, tuple.src_ip, tuple.dst_ip, tuple.src_port,
                                                      tuple.dst_port))
 
@@ -280,6 +287,37 @@ def set_tc_tethering_offload_rule(tuple: TUPLE):
     log.info("setting tc tethering rule: ret={}, msg={}".format(ret, msg))
 
 
+def load_tc_bpf(downstream: DOWNSTREAM, upstream: UPSTREAM):
+    #load downstream tc ingress
+    cmd = "tc qdisc show dev {}".format(downstream.name)
+    run_cmd(cmd)
+
+    cmd = "tc qdisc add dev {} clsact".format(downstream.name)
+    run_cmd(cmd)
+
+    cmd = "tc filter add dev {} ingress bpf da obj {} sec {}".format(downstream.name, "tc_tethering_kern.o",
+                                                                     "sched_cls_tether_downstream4_ether")
+    run_cmd(cmd)
+
+    cmd = "tc qdisc show dev {} ingress".format(downstream.name)
+    ret, msg = run_cmd(cmd)
+    log.info("dev {} ingress: {}".format(downstream.name, msg))
+
+    #load upstream tc ingress
+    cmd = "tc qdisc show dev {}".format(upstream.name)
+    run_cmd(cmd)
+
+    cmd = "tc qdisc add dev {} clsact".format(upstream.name)
+    run_cmd(cmd)
+
+    cmd = "tc filter add dev {} ingress bpf da obj {} sec {}".format(upstream.name, "tc_tethering_kern.o",
+                                                                     "sched_cls_tether_upstream4_rawip")
+    run_cmd(cmd)
+
+    cmd = "tc qdisc show dev {} ingress".format(upstream.name)
+    ret, msg = run_cmd(cmd)
+    log.info("dev {} ingress: {}".format(upstream.name, msg))
+
 def main():
     parser = argparse.ArgumentParser(description="This is a example program")
     parser.add_argument('-d', '--downstream_nic_name', default=None, help='the downstream NIC name')
@@ -311,6 +349,7 @@ def main():
     client = CLIENT(args.client_ipv4_addr)
     server = SERVER()
 
+    load_tc_bpf(downstream, upstream)
     set_nat_rule(client, upstream)
 
     link_info["downstream"] = downstream
