@@ -227,7 +227,7 @@ class CONNTRACK:
                     tuple_is_exist = True
 
             if tuple_is_exist is not True:
-                log.debug(
+                log.info(
                     "new tuple: {}-{}-{}-{}-{}".format(tuple.proto, tuple.src_ip, tuple.dst_ip, tuple.src_port,
                                                        tuple.dst_port))
                 self.conntrack_tuples.append(tuple)
@@ -276,8 +276,8 @@ def set_tc_tethering_offload_rule(tuple: TUPLE):
                                                                                                 downstream.port)
 
     log.info(cmd)
-    # ret, msg = run_cmd(cmd)
-    # log.info("setting tc tethering rule".format(msg))
+    ret, msg = run_cmd(cmd)
+    log.info("setting tc tethering rule: ret={}, msg={}".format(ret, msg))
 
 
 def main():
