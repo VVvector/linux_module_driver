@@ -135,7 +135,7 @@ class DOWNSTREAM:
 class UPSTREAM:
     if_id = None
     ipv4_addr = None
-    port = None
+    l4_port = None
 
     def __init__(self, nic_name):
         self.name = nic_name
@@ -164,9 +164,9 @@ class UPSTREAM:
 
         log.info("upstream: {}-{}-{}".format(self.name, self.if_id, self.ipv4_addr))
 
-    def update_info(self, port):
-        self.port = port
-        log.info("upstream: {}-{}-{}-{}".format(self.name, self.if_id, self.ipv4_addr, self.port))
+    def update_info(self, l4_port):
+        self.l4_port = l4_port
+        log.info("upstream: {}-{}-{}-{}".format(self.name, self.if_id, self.ipv4_addr, self.l4_port))
 
 
 def set_nat_rule(client: CLIENT, upstream: UPSTREAM):
@@ -345,7 +345,7 @@ def set_tc_tethering_offload_rule(conntrack_msg: CONNTRACKMESSAGE):
 
 
 def load_tc_bpf(downstream: DOWNSTREAM, upstream: UPSTREAM):
-    # load downstream tc ingress
+    # load downstream NIC tc ingress
     cmd = "tc qdisc show dev {}".format(downstream.name)
     run_cmd(cmd)
 
@@ -360,7 +360,7 @@ def load_tc_bpf(downstream: DOWNSTREAM, upstream: UPSTREAM):
     ret, msg = run_cmd(cmd)
     log.info("dev {} ingress: {}".format(downstream.name, msg))
 
-    # load upstream tc ingress
+    # load upstream NIC tc ingress
     cmd = "tc qdisc show dev {}".format(upstream.name)
     run_cmd(cmd)
 
