@@ -116,15 +116,14 @@ class DOWNSTREAM:
         self.if_id = temp[0]
 
         # 获取mac address
-        temp = lines[1].split(" ")
+        temp = lines[1].split()
         log.debug(temp)
-        self.mac_addr = temp[5]
+        self.mac_addr = temp[1]
 
         # 获取ipv4 address
-        temp = lines[3].split(" ")
+        temp = lines[3].split()
         log.debug(temp)
-        temp = lines[3].split(" ")
-        temp = temp[5].split("/")
+        temp = temp[1].split("/")
         self.ipv4_addr = temp[0]
 
         log.info("download: {}-{}-{}-{}".format(self.name, self.if_id, self.mac_addr, self.ipv4_addr))
@@ -193,22 +192,27 @@ class CONNTRACK:
     conntrack_msg = None
     conntrack_tuples = []
 
-    def __init__(self, monitor_time, souce_ipv4_addr, callback):
-        self.souce_ipv4_addr = souce_ipv4_addr
+    def __init__(self, monitor_interval, link_info, callback):
+        self.link_info = link_info
         self.callback = callback
-        self.monitor_time = monitor_time
+        self.monitor_interval = monitor_interval
 
     def dump_conntrack_info(self):
-        cmd = "conntrack -L -s {}".format(self.souce_ipv4_addr)
+        cmd = "conntrack -L -s {}".format(self.link_info["client"].ipv4_addr)
         ret, msg = run_cmd(cmd)
         log.info("conntrack information: {}".format(msg))
         self.conntrack_msg = msg
 
+    def filter_track_event(self, connection):
+        if connection.find("ESTABLISHED") != -1 and connection.find(self.link_info["downstream"].ipv4_addr) == -1:
+            return True
+
     def parse_established_conntrack_to_tuple(self):
         lines = self.conntrack_msg.splitlines()
         for line in lines:
-            # if line.find("ESTABLISHED") == -1:
-            #    continue
+            if not self.filter_track_event(line):
+                continue
+
             temp = line.split()
             log.debug(temp)
             tuple = TUPLE()
@@ -245,7 +249,7 @@ class CONNTRACK:
             self.dump_conntrack_info()
             self.parse_established_conntrack_to_tuple()
 
-            time.sleep(self.monitor_time)
+            time.sleep(self.monitor_interval)
 
 
 link_info = dict()
@@ -357,11 +361,11 @@ def main():
     link_info["client"] = client
     link_info["server"] = server
 
-    conntrack = CONNTRACK(2, args.client_ipv4_addr, set_tc_tethering_offload_rule)
+    conntrack = CONNTRACK(2, link_info, set_tc_tethering_offload_rule)
     conntrack.monitor_conntrack()
 
 
 if __name__ == '__main__':
-    log.basicConfig(level=log.INFO,
+    log.basicConfig(level=log.DEBUG,
                     format='%(asctime)s - %(filename)s[line:%(lineno)d] - %(levelname)s: %(message)s')
     main()
