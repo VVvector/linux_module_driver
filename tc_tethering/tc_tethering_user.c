@@ -160,47 +160,47 @@ static void init_bpf_map_info(
 	PTether4Key dk4, PTether4Value dv4,
 	PTether4Key uk4, PTether4Value uv4)
 {
-	// uplink (downstream NIC ingress)
+	// TETHER_UPSTREAM4_MAP -- on downstream NIC ingress
 	// server <- UE[upstream <- downstream] <- client
-	dk4->iif = downstream->if_index;
-	dk4->l4Proto = client->l4_proto;
-	dk4->src4 = client->ip;
-	dk4->dst4 = server->ip;
-	dk4->srcPort = htons(client->port);
-	dk4->dstPort = htons(server->port);
-	memcpy(dk4->dstMac, &downstream->mac, ETH_ALEN);
-	show_Tether4Key(dk4, TETHER_DOWNSTREAM4_MAP_PATH);
-
-	dv4->oif = upstream->if_index;
-	dv4->pmtu = 1500;
-	dv4->src46.s6_addr32[3] = upstream->ip.s_addr;
-	dv4->dst46.s6_addr32[3] = server->ip.s_addr;
-	dv4->srcPort = htons(upstream->port);
-	dv4->dstPort = htons(server->port);
-	memset(&dv4->macHeader, 0x00, sizeof(dv4->macHeader));
-	show_Tether4Value(dv4, TETHER_DOWNSTREAM4_MAP_PATH);
-
-	// downlink (upstream NIC ingress)
-	// server -> UE[upstream -> downstream] -> client
-	uk4->iif = upstream->if_index;
-	uk4->l4Proto = server->l4_proto;
-	uk4->src4 = server->ip;
-	uk4->dst4 = upstream->ip;
-	uk4->srcPort = htons(server->port);
-	uk4->dstPort = htons(upstream->port);
-	memset(uk4->dstMac, 0x00, ETH_ALEN);
+	uk4->iif = downstream->if_index;
+	uk4->l4Proto = client->l4_proto;
+	uk4->src4 = client->ip;
+	uk4->dst4 = server->ip;
+	uk4->srcPort = htons(client->port);
+	uk4->dstPort = htons(server->port);
+	memcpy(uk4->dstMac, &downstream->mac, ETH_ALEN);
 	show_Tether4Key(uk4, TETHER_UPSTREAM4_MAP_PATH);
 
-	uv4->oif = downstream->if_index;
-	uv4->pmtu = PMTU;
-	uv4->src46.s6_addr32[3] = server->ip.s_addr;
-	uv4->dst46.s6_addr32[3] = client->ip.s_addr;
-	uv4->srcPort = htons(server->port);
-	uv4->dstPort = htons(client->port);
-	memcpy(uv4->macHeader.h_dest, client->mac, ETH_ALEN);
-	memcpy(uv4->macHeader.h_source, &downstream->mac, ETH_ALEN);
-	uv4->macHeader.h_proto = htons(downstream->l3_proto);
+	uv4->oif = upstream->if_index;
+	uv4->pmtu = 1500; //ETHER_MTU
+	uv4->src46.s6_addr32[3] = upstream->ip.s_addr;
+	uv4->dst46.s6_addr32[3] = server->ip.s_addr;
+	uv4->srcPort = htons(upstream->port);
+	uv4->dstPort = htons(server->port);
+	memset(&uv4->macHeader, 0x00, sizeof(uv4->macHeader));
 	show_Tether4Value(uv4, TETHER_UPSTREAM4_MAP_PATH);
+
+	// TETHER_DOWNSTREAM4_MAP -- on upstream NIC ingress)
+	// server -> UE[upstream -> downstream] -> client
+	dk4->iif = upstream->if_index;
+	dk4->l4Proto = server->l4_proto;
+	dk4->src4 = server->ip;
+	dk4->dst4 = upstream->ip;
+	dk4->srcPort = htons(server->port);
+	dk4->dstPort = htons(upstream->port);
+	memset(dk4->dstMac, 0x00, ETH_ALEN);
+	show_Tether4Key(dk4, TETHER_DOWNSTREAM4_MAP_PATH);
+
+	dv4->oif = downstream->if_index;
+	dv4->pmtu = PMTU;
+	dv4->src46.s6_addr32[3] = server->ip.s_addr;
+	dv4->dst46.s6_addr32[3] = client->ip.s_addr;
+	dv4->srcPort = htons(downstream->port);
+	dv4->dstPort = htons(client->port);
+	memcpy(dv4->macHeader.h_dest, client->mac, ETH_ALEN);
+	memcpy(dv4->macHeader.h_source, &downstream->mac, ETH_ALEN);
+	dv4->macHeader.h_proto = htons(downstream->l3_proto);
+	show_Tether4Value(dv4, TETHER_DOWNSTREAM4_MAP_PATH);
 
 }
 
