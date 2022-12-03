@@ -49,7 +49,7 @@ class CLIENT:
     mac_addr = None
     ipv4_addr = None
     l4_proto = None
-    port = None
+    l4_port = None
 
     def __init__(self, ipv4_addr):
         self.ipv4_addr = ipv4_addr
@@ -68,12 +68,33 @@ class CLIENT:
 
         log.info("client: {} - {}".format(self.mac_addr, self.ipv4_addr))
 
+    def update_info(self, l4_proto, l4_port):
+        self.l4_proto = l4_proto
+        self.l4_port = l4_port
+        log.info("client: {}-{}-{}-{}".format(self.mac_addr, self.ipv4_addr, self.l4_proto, self.l4_port))
+
+
+class SERVER:
+    l4_proto = None
+    l4_port = None
+    ipv4_addr = None
+
+
+    def update_info(self, ipv4_addr, l4_proto, l4_port):
+        self.ipv4_addr = ipv4_addr
+        self.l4_proto = l4_proto
+        self.l4_port = l4_port
+        log.info("server: {}-{}-{}".format(self.ipv4_addr, self.l4_proto, self.l4_port))
+
 
 class DOWNSTREAM:
     name = None
     if_id = None
     mac_addr = None
+    l3_proto = "0x0800"  # ipv4
     ipv4_addr = None
+    l4_port = None
+
 
     def __init__(self, nic_name):
         self.name = nic_name
@@ -105,6 +126,10 @@ class DOWNSTREAM:
         self.ipv4_addr = temp[0]
 
         log.info("download: {}-{}-{}-{}".format(self.name, self.if_id, self.mac_addr, self.ipv4_addr))
+
+    def update_info(self, l4_port):
+        self.l4_port = l4_port
+        log.info("download: {}-{}-{}-{}".format(self.name, self.if_id, self.mac_addr, self.l3_proto, self.ipv4_addr, self.l4_port))
 
 
 class UPSTREAM:
@@ -139,6 +164,10 @@ class UPSTREAM:
 
         log.info("upstream: {}-{}-{}".format(self.name, self.if_id, self.ipv4_addr))
 
+    def update_info(self, port):
+        self.port = port
+        log.info("upstream: {}-{}-{}-{}".format(self.name, self.if_id, self.ipv4_addr, self.port))
+
 
 def set_nat_rule(client: CLIENT, upstream: UPSTREAM):
     cmd = "iptables -t nat -A POSTROUTING -o {} -s {}  -j SNAT --to {}".format(
@@ -156,6 +185,7 @@ def set_nat_rule(client: CLIENT, upstream: UPSTREAM):
     ret, msg = run_cmd(cmd)
     log.info("ipv4 forward status: {}".format(msg))
 
+
 ######### conntrack monitor ########################
 class TUPLE:
     proto_num = None
@@ -164,15 +194,17 @@ class TUPLE:
     src_port = None
     dst_port = None
 
+
 def check_tuple_equle(src: TUPLE, dst: TUPLE):
     if (src.proto_num == dst.proto_num and src.src_ip == dst.src_ip and src.dst_ip == dst.dst_ip and
             src.src_port == dst.src_port and src.dst_port == dst.dst_port):
         return True
 
+
 class CONNTRACKMESSAGE:
     # Original direction conntrack tuple.
     tuple_orig = TUPLE()
-    #Reply direction conntrack tuple.
+    # Reply direction conntrack tuple.
     tuple_reply = TUPLE()
 
     def __init__(self, conntrack_msg):
@@ -207,11 +239,11 @@ class CONNTRACKMESSAGE:
                     self.tuple_reply.dst_port = info.split("=")[1]
 
             log.debug("original tuple: {}-{}-{}-{}-{}".format(self.tuple_orig.proto_num, self.tuple_orig.src_ip,
-                                                     self.tuple_orig.dst_ip, self.tuple_orig.src_port,
-                                                     self.tuple_orig.dst_port))
+                                                              self.tuple_orig.dst_ip, self.tuple_orig.src_port,
+                                                              self.tuple_orig.dst_port))
             log.debug("reply tuple: {}-{}-{}-{}-{}".format(self.tuple_reply.proto_num, self.tuple_reply.src_ip,
-                                                     self.tuple_reply.dst_ip, self.tuple_reply.src_port,
-                                                     self.tuple_reply.dst_port))
+                                                           self.tuple_reply.dst_ip, self.tuple_reply.src_port,
+                                                           self.tuple_reply.dst_port))
 
 
 class CONNTRACKMONITOR:
@@ -220,9 +252,9 @@ class CONNTRACKMONITOR:
     def __init__(self, monitor_interval, link_info, callback):
         self.callback = callback
         self.monitor_interval = monitor_interval
-        #Source address from original direction
+        # Source address from original direction
         self.orig_src = link_info["client"].ipv4_addr
-        #Destination address from original direction
+        # Destination address from original direction
         self.orig_dst = link_info["downstream"].ipv4_addr
 
     def dump_conntrack_msgs(self):
@@ -245,7 +277,6 @@ class CONNTRACKMONITOR:
 
         return is_exist
 
-
     def parse_conntrack_msgs(self):
         msgs = self.conntrack_msg.splitlines()
         for msg in msgs:
@@ -255,12 +286,16 @@ class CONNTRACKMONITOR:
             conntrack_msg = CONNTRACKMESSAGE(msg)
             conntrack_msg.parse_conntrack_msg()
             if self.check_contrack_msg_is_exist(conntrack_msg) is not True:
-                log.info("original tuple: {}-{}-{}-{}-{}".format(conntrack_msg.tuple_orig.proto_num, conntrack_msg.tuple_orig.src_ip,
-                                                                  conntrack_msg.tuple_orig.dst_ip, conntrack_msg.tuple_orig.src_port,
-                                                                  conntrack_msg.tuple_orig.dst_port))
-                log.info("reply tuple: {}-{}-{}-{}-{}".format(conntrack_msg.tuple_reply.proto_num, conntrack_msg.tuple_reply.src_ip,
-                                                               conntrack_msg.tuple_reply.dst_ip, conntrack_msg.tuple_reply.src_port,
-                                                               conntrack_msg.tuple_reply.dst_port))
+                log.info("original tuple: {}-{}-{}-{}-{}".format(conntrack_msg.tuple_orig.proto_num,
+                                                                 conntrack_msg.tuple_orig.src_ip,
+                                                                 conntrack_msg.tuple_orig.dst_ip,
+                                                                 conntrack_msg.tuple_orig.src_port,
+                                                                 conntrack_msg.tuple_orig.dst_port))
+                log.info("reply tuple: {}-{}-{}-{}-{}".format(conntrack_msg.tuple_reply.proto_num,
+                                                              conntrack_msg.tuple_reply.src_ip,
+                                                              conntrack_msg.tuple_reply.dst_ip,
+                                                              conntrack_msg.tuple_reply.src_port,
+                                                              conntrack_msg.tuple_reply.dst_port))
                 self.conntrack_message_list.append(conntrack_msg)
                 self.callback(conntrack_msg)
 
@@ -272,28 +307,37 @@ class CONNTRACKMONITOR:
 
 
 link_info = dict()
+
+
 def set_tc_tethering_offload_rule(conntrack_msg: CONNTRACKMESSAGE):
-    log.info("add tethering offload rule")
+    log.info("add tethering offload rule:")
 
     downstream = link_info["downstream"]
     upstream = link_info["upstream"]
+    client = link_info["client"]
+    server = link_info["server"]
 
-    cmd = ".tc_tethering_user -O {}-{}-{}-{}-{} -R {}-{}-{}-{}-{} -D {}-{} -U {} -C {} -M {}-{}".format(conntrack_msg.tuple_orig.proto_num,
-                                                                                                           conntrack_msg.tuple_orig.src_ip,
-                                                                                                           conntrack_msg.tuple_orig.dst_ip,
-                                                                                                           conntrack_msg.tuple_orig.src_port,
-                                                                                                           conntrack_msg.tuple_orig.dst_port,
-                                                                                                           conntrack_msg.tuple_reply.proto_num,
-                                                                                                           conntrack_msg.tuple_reply.src_ip,
-                                                                                                           conntrack_msg.tuple_reply.dst_ip,
-                                                                                                           conntrack_msg.tuple_reply.src_port,
-                                                                                                           conntrack_msg.tuple_reply.dst_port,
-                                                                                                           downstream.if_id,
-                                                                                                           downstream.mac_addr,
-                                                                                                           upstream.if_id,
-                                                                                                           "0x800",
-                                                                                                           "1500"
-                                                                                                           )
+    downstream.update_info(conntrack_msg.tuple_orig.dst_port)
+    upstream.update_info(conntrack_msg.tuple_reply.dst_port)
+    client.update_info(conntrack_msg.tuple_orig.proto_num, conntrack_msg.tuple_orig.src_port)
+    server.update_info(conntrack_msg.tuple_reply.src_ip, conntrack_msg.tuple_reply.proto_num,
+                       conntrack_msg.tuple_orig.src_port)
+
+    cmd = "./tc_tethering_user -C {}-{}-{}-{} -S {}-{}-{} -U {}-{}-{} -D {}-{}-{}-{}-{}".format(client.mac_addr,
+                                                                                                client.ipv4_addr,
+                                                                                                client.l4_proto,
+                                                                                                client.l4_port,
+                                                                                                server.ipv4_addr,
+                                                                                                server.l4_proto,
+                                                                                                server.l4_port,
+                                                                                                upstream.if_id,
+                                                                                                upstream.ipv4_addr,
+                                                                                                upstream.l4_port,
+                                                                                                downstream.if_id,
+                                                                                                downstream.mac_addr,
+                                                                                                downstream.l3_proto,
+                                                                                                downstream.ipv4_addr,
+                                                                                                downstream.l4_port)
 
     log.info(cmd)
     ret, msg = run_cmd(cmd)
@@ -301,7 +345,7 @@ def set_tc_tethering_offload_rule(conntrack_msg: CONNTRACKMESSAGE):
 
 
 def load_tc_bpf(downstream: DOWNSTREAM, upstream: UPSTREAM):
-    #load downstream tc ingress
+    # load downstream tc ingress
     cmd = "tc qdisc show dev {}".format(downstream.name)
     run_cmd(cmd)
 
@@ -316,7 +360,7 @@ def load_tc_bpf(downstream: DOWNSTREAM, upstream: UPSTREAM):
     ret, msg = run_cmd(cmd)
     log.info("dev {} ingress: {}".format(downstream.name, msg))
 
-    #load upstream tc ingress
+    # load upstream tc ingress
     cmd = "tc qdisc show dev {}".format(upstream.name)
     run_cmd(cmd)
 
@@ -330,6 +374,7 @@ def load_tc_bpf(downstream: DOWNSTREAM, upstream: UPSTREAM):
     cmd = "tc qdisc show dev {} ingress".format(upstream.name)
     ret, msg = run_cmd(cmd)
     log.info("dev {} ingress: {}".format(upstream.name, msg))
+
 
 def main():
     parser = argparse.ArgumentParser(description="This is a example program")
@@ -356,6 +401,7 @@ def main():
     downstream = DOWNSTREAM(args.downstream_nic_name)
     upstream = UPSTREAM(args.upstream_nic_name)
     client = CLIENT(args.client_ipv4_addr)
+    server = SERVER()
 
     load_tc_bpf(downstream, upstream)
     set_nat_rule(client, upstream)
@@ -363,6 +409,7 @@ def main():
     link_info["downstream"] = downstream
     link_info["upstream"] = upstream
     link_info["client"] = client
+    link_info["server"] = server
 
     conntrack = CONNTRACKMONITOR(2, link_info, set_tc_tethering_offload_rule)
     conntrack.monitor_conntrack()
