@@ -156,7 +156,7 @@ class UPSTREAM:
         if self.ipv4_addr == ipv4_addr:
             return True
         else:
-            return  False
+            return False
 
 
 ###################neighbor ######################################################################################
@@ -178,12 +178,11 @@ def set_nat_rule(client_ipv4_addr, upstream: UPSTREAM):
 
 
 class NEIGHBOR_MESSAGE:
-    msg = None
-    ipv4_addr = None
-    mac = None
 
     def __init__(self, neighbor_msg):
         self.msg = neighbor_msg
+        self.ipv4_addr = None
+        self.mac = None
 
     def parse_neighbor_msg(self):
         temp = self.msg.split()
@@ -198,10 +197,10 @@ class NEIGHBOR_MESSAGE:
 
 
 class NEIGHBOR_MONITOR:
-    neighbor_message_list = []
-    neighbor_msg = None
 
     def __init__(self, dev_name, link_info, callback):
+        self.neighbor_message_list = []
+        self.neighbor_msg = None
         self.dev_name = dev_name
         self.link_info = link_info
         self.callback = callback
@@ -209,7 +208,7 @@ class NEIGHBOR_MONITOR:
     def dump_neighbor_msgs(self):
         cmd = "ip neighbor show dev {} nud reachable".format(self.dev_name)
         ret, msg = run_cmd(cmd)
-        log.info("neighbor information: {}".format(msg))
+        log.debug("neighbor information: {}".format(msg))
         self.neighbor_msg = msg
         return msg
 
@@ -247,6 +246,7 @@ class NEIGHBOR_MONITOR:
         return mac
 
     def update_neighbor_messages(self):
+        log.info("update neighbor information")
         self.dump_neighbor_msgs()
         msgs = self.neighbor_msg.splitlines()
         log.debug(msgs)
@@ -382,6 +382,7 @@ class CONNTRACK_MONITOR:
         return is_exist
 
     def update_conntrack_messages(self):
+        log.info("update conntrack information")
         self.dump_conntrack_msgs()
         msgs = self.conntrack_msg.splitlines()
         for msg in msgs:
@@ -437,12 +438,12 @@ def set_tc_tethering_offload_rule(conntrack_msg: CONNTRACK_MESSAGE):
                                                                                                 downstream.l4_port)
 
     log.info(cmd)
-    # ret, msg = run_cmd(cmd)
-    # log.info("setting tc tethering rule: ret={}, msg={}".format(ret, msg))
+    ret, msg = run_cmd(cmd)
+    log.info("setting tc tethering rule: ret={}, msg={}".format(ret, msg))
 
 
 def load_tc_bpf(downstream: DOWNSTREAM, upstream: UPSTREAM):
-    # load downstream NIC tc ingress
+    # load downstream NIC tc ingress - upstream4_map
     cmd = "tc qdisc show dev {}".format(downstream.name)
     run_cmd(cmd)
 
@@ -457,7 +458,7 @@ def load_tc_bpf(downstream: DOWNSTREAM, upstream: UPSTREAM):
     ret, msg = run_cmd(cmd)
     log.info("dev {} ingress: {}".format(downstream.name, msg))
 
-    # load upstream NIC tc ingress
+    # load upstream NIC tc ingress - downstream4_map
     cmd = "tc qdisc show dev {}".format(upstream.name)
     run_cmd(cmd)
 
