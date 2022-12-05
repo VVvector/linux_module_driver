@@ -46,11 +46,6 @@ def run_cmd(cmd_string, timeout=20):
 
 
 class CLIENT:
-    mac_addr = None
-    ipv4_addr = None
-    l4_proto = None
-    l4_port = None
-
     def update_info(self, mac_addr, ipv4_addr, l4_proto, l4_port):
         self.mac_addr = mac_addr
         self.ipv4_addr = ipv4_addr
@@ -60,10 +55,6 @@ class CLIENT:
 
 
 class SERVER:
-    l4_proto = None
-    l4_port = None
-    ipv4_addr = None
-
     def update_info(self, ipv4_addr, l4_proto, l4_port):
         self.ipv4_addr = ipv4_addr
         self.l4_proto = l4_proto
@@ -71,82 +62,70 @@ class SERVER:
         log.info("server: {}-{}-{}".format(self.ipv4_addr, self.l4_proto, self.l4_port))
 
 
-class DOWNSTREAM:
-    name = None
+# 获取指定downstream的interface id, mac addr, ipv4 addr
+def parse_nic_information(nic_name):
     if_id = None
     mac_addr = None
-    l3_proto = "0x0800"  # ipv4
     ipv4_addr = None
-    l4_port = None
+
+    cmd = "ip addr show dev {}".format(nic_name)
+    ret, msg = run_cmd(cmd)
+    log.debug(msg)
+    if ret:
+        log.error("get {} information fail!".format(nic_name))
+        return if_id, mac_addr, ipv4_addr
+
+    lines = msg.splitlines()
+    log.debug(lines)
+
+    for line in lines:
+        # 获取interface id
+        if line.find("{}: ".format(nic_name)) != -1:
+            temp = line.split(":")
+            log.debug(temp)
+            if_id = temp[0]
+
+        # 获取mac address
+        if line.find("link/ether ") != -1:
+            temp = line.split()
+            log.debug(temp)
+            mac_addr = temp[1]
+
+        # 获取ipv4 address
+        if line.find("inet ") != -1:
+            temp = line.split()
+            log.debug(temp)
+            temp = temp[1].split("/")
+            ipv4_addr = temp[0]
+
+    log.info("{}: {}-{}-{}".format(nic_name, if_id, mac_addr, ipv4_addr))
+
+    return if_id, mac_addr, ipv4_addr
+
+
+class DOWNSTREAM:
+    l3_proto = "0x0800"  # ipv4
 
     def __init__(self, nic_name):
         self.name = nic_name
-
-        # 获取指定downstream的interface id, mac addr, ipv4 addr
-        cmd = "ip addr show dev {}".format(self.name)
-        ret, msg = run_cmd(cmd)
-        log.debug(msg)
-        if ret:
-            return
-
-        lines = msg.splitlines()
-        log.debug(lines)
-
-        # 获取interface id
-        temp = lines[0].split(":")
-        log.debug(temp)
-        self.if_id = temp[0]
-
-        # 获取mac address
-        temp = lines[1].split()
-        log.debug(temp)
-        self.mac_addr = temp[1]
-
-        # 获取ipv4 address
-        temp = lines[3].split()
-        log.debug(temp)
-        temp = temp[1].split("/")
-        self.ipv4_addr = temp[0]
-
-        log.info("download: {}-{}-{}-{}".format(self.name, self.if_id, self.mac_addr, self.ipv4_addr))
+        if_id, mac_addr, ipv4_addr = parse_nic_information(self.name)
+        self.if_id = if_id
+        self.mac_addr = mac_addr
+        self.ipv4_addr = ipv4_addr
 
     def update_info(self, l4_port):
         self.l4_port = l4_port
-        log.info("download: {}-{}-{}-{}".format(self.name, self.if_id, self.mac_addr, self.l3_proto, self.ipv4_addr,
-                                                self.l4_port))
+        log.info(
+            "downstream: {}-{}-{}-{}-{}-{}".format(self.name, self.if_id, self.mac_addr, self.l3_proto, self.ipv4_addr,
+                                                   self.l4_port))
 
 
 class UPSTREAM:
-    if_id = None
-    ipv4_addr = None
-    l4_port = None
-
     def __init__(self, nic_name):
         self.name = nic_name
-
-        # 获取指定downstream的interface id, mac addr, ipv4 addr
-        cmd = "ip addr show dev {}".format(self.name)
-        ret, msg = run_cmd(cmd)
-        log.debug(msg)
-        if ret:
-            return
-
-        lines = msg.splitlines()
-        log.debug(lines)
-
-        # 获取interface id
-        temp = lines[0].split(":")
-        log.debug(temp)
-        self.if_id = temp[0]
-
-        # 获取ipv4 address
-        temp = lines[3].split(" ")
-        log.debug(temp)
-        temp = lines[3].split(" ")
-        temp = temp[5].split("/")
-        self.ipv4_addr = temp[0]
-
-        log.info("upstream: {}-{}-{}".format(self.name, self.if_id, self.ipv4_addr))
+        if_id, mac_addr, ipv4_addr = parse_nic_information(self.name)
+        self.if_id = if_id
+        self.ipv4_addr = ipv4_addr
 
     def update_info(self, l4_port):
         self.l4_port = l4_port
@@ -419,7 +398,7 @@ def set_tc_tethering_offload_rule(conntrack_msg: CONNTRACK_MESSAGE):
     client.update_info(conntrack_msg.orig_src_mac, conntrack_msg.tuple_orig.src_ip,
                        conntrack_msg.tuple_orig.proto_num, conntrack_msg.tuple_orig.src_port)
     server.update_info(conntrack_msg.tuple_reply.src_ip, conntrack_msg.tuple_reply.proto_num,
-                       conntrack_msg.tuple_orig.src_port)
+                       conntrack_msg.tuple_reply.src_port)
 
     cmd = "./tc_tethering_user -C {}-{}-{}-{} -S {}-{}-{} -U {}-{}-{} -D {}-{}-{}-{}-{}".format(client.mac_addr,
                                                                                                 client.ipv4_addr,
@@ -439,7 +418,7 @@ def set_tc_tethering_offload_rule(conntrack_msg: CONNTRACK_MESSAGE):
 
     log.info(cmd)
     ret, msg = run_cmd(cmd)
-    log.info("setting tc tethering rule: ret={}, msg={}".format(ret, msg))
+    log.info("tc_tethering_user log:  ret={}, msg={}".format(ret, msg))
 
 
 def load_tc_bpf(downstream: DOWNSTREAM, upstream: UPSTREAM):
@@ -474,25 +453,41 @@ def load_tc_bpf(downstream: DOWNSTREAM, upstream: UPSTREAM):
     log.info("dev {} ingress: {}".format(upstream.name, msg))
 
 
+def clean_setting(upstream_nic_name, downstream_nic_name):
+    log.info("clean NAT setting:")
+    cmd = "iptables -t nat -F"
+    run_cmd(cmd)
+    log.info("clean the iptables NAT rules")
+
+    cmd = "iptables -t nat -vnL"
+    ret, msg = run_cmd(cmd)
+    log.info("nat rule: {}".format(msg))
+
+    log.info("clean tc setting")
+    cmd = "tc filter del dev {} ingress".format(upstream_nic_name)
+    run_cmd(cmd)
+    cmd = "tc qdisc add dev {} clsact".format(upstream_nic_name)
+    run_cmd(cmd)
+
+    cmd = "tc filter del dev {} ingress".format(downstream_nic_name)
+    run_cmd(cmd)
+    cmd = "tc qdisc add dev {} clsact".format(downstream_nic_name)
+    run_cmd(cmd)
+
+
 def main():
     parser = argparse.ArgumentParser(description="This is a example program")
     parser.add_argument('-d', '--downstream_nic_name', default=None, help='the downstream NIC name')
     parser.add_argument('-u', '--upstream_nic_name', default=None, help='the upstream NIC name')
-    parser.add_argument('-R', '--recovery', action='store_true', help='clean the iptabels NAT setting')
+    parser.add_argument('-r', '--recovery', action='store_true', help='clean the iptabels NAT setting')
     args = parser.parse_args()
-
-    if args.recovery:
-        cmd = "iptables -t nat -F"
-        run_cmd(cmd)
-        log.info("clean the iptables NAT rules")
-
-        cmd = "iptables -t nat -vnL"
-        ret, msg = run_cmd(cmd)
-        log.info("nat rule: {}".format(msg))
-        return
 
     if args.downstream_nic_name is None or args.upstream_nic_name is None:
         log.info("please input the downstream_nic_name, upstream_nic_name")
+        return
+
+    if args.recovery:
+        clean_setting(args.upstream_nic_name, args.downstream_nic_name)
         return
 
     downstream = DOWNSTREAM(args.downstream_nic_name)

@@ -224,7 +224,8 @@ int main(int argc, char **argv)
 	int opt;
 	int i = 0;
 	ulong ip;
-	char *p; 
+	char *p;
+	char *p_end;
 
 	struct server_info server = {0};
 	struct upstream_info upstream = {0};
@@ -311,7 +312,8 @@ int main(int argc, char **argv)
 				} else if (i == 1) {
 					hexstr2mac(p, downstream.mac);
 				} else if (i == 2) {
-					downstream.l3_proto = atoi(p);
+					//downstream.l3_proto = atoi(p);
+					downstream.l3_proto = strtol(p, &p_end, 16);
 				} else if (i == 3) {
 					ip = inet_addr(p);
 					memcpy(&downstream.ip, &ip, 4);
