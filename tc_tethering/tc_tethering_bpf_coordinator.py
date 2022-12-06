@@ -15,7 +15,7 @@ def run_cmd(cmd_string, timeout=20):
 
     txt_format = 'utf-8'
     if platform.system() == "Windows":
-        format = 'gbk'
+        txt_format = 'gbk'
 
     try:
         (msg, errs) = p.communicate(timeout=timeout)
